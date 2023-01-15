@@ -1,0 +1,15 @@
+{
+  "name": "easy-components",
+  "version": "1.0.0",
+  "description": "Automatic creation of React components",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "_imagineunlimited_",
+  "license": "ISC",
+  "dependencies": {
+    "fs": "^0.0.1-security"
+  },
+  "devDependencies": {}
+}
