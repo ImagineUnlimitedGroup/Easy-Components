@@ -2,6 +2,8 @@ const fs = require('fs');
 
 //  Получение имени класса 
 const getClassName = (string) => {
+  // Так как класс находится внутри выражения class="ИмяКласса"
+  // С помощью регулярных выражений получаем содержимое
   let regEx = 'class="(.*)"';
   let className = string.match(regEx)[1];
   return className
@@ -12,8 +14,14 @@ const getClassHtmlContent = (code, className) => {
   // Делим на строки
   let codeArr = code.split(/\n/)
 
+  // Мы будем вычитать при каждом закрывающем теге и
+  // прибавлять при открывающем
+  // Дочерние классы в таком случае самоуничтожатся в счетчике и
+  // мы сможем найти нужный закрывающий тег
   let openTagId = 0
   let closeTagCounter = 0
+
+  // Переменная для ханенияя результата 
   let classCode = ''
 
   // Проходим по каждой строке основного кода и ищем нужный класс
@@ -48,6 +56,7 @@ const getClassHtmlContent = (code, className) => {
         closeTagCounter += 1
       }
     });
+    // Так как мы уже в нужном классе
     // Прибавляем строку к коду
     classCode = classCode + codeArr[i] + "\n"
     // При 0 мы найдем закрывающий тег нужного класса
@@ -57,11 +66,15 @@ const getClassHtmlContent = (code, className) => {
     }
   }
 
+  // Возвращаем код нужного класса
   return classCode
 }
 
 // Создание файла
 const createComponentFile = (fileName) => {
+  // Файлы могут быть созданы ранее,
+  // поэтому мы просто игнорируем ошибки
+  // Это позволяет не загрязнять консоль
   fs.open(fileName, 'w', (err) => {
     if(err) {}; // не удалось создать файл
   });
@@ -70,6 +83,7 @@ const createComponentFile = (fileName) => {
 // Получаем все медиазапросы 
 // Функция вернет код медиазапроса и код css без медиазапросов 
 // Это нужно чтобы обрабатывать их раздельно
+// так как при медиазапросе нам также нужны его параметры
 const splitCssCode = (code) => {
   // Делим код на строки
   let codeArr = code.split('\n')
@@ -77,12 +91,14 @@ const splitCssCode = (code) => {
   // Здесь будут храниться все медиазапросы
   let mediaRequestsCode = ''
   // Создаем копию кода откуда будем удалять все что принадлежит медиазапросам
+  // Метод replace тут не поможет так как могут встречаться одинаковые строки
   let simpleCssCodeArr = codeArr.slice(0)
 
   // Статус False показывает, что мы еще не находимся в теле медиазапроса
   let mediaStatus = false
 
   // Этот счетчик позволит понять когда медиазапрос заканчивается
+  // Код работает по принципу из функции getClassHtmlContent()
   let counter = 0
 
   // Проходим по каждой строке массива
@@ -95,18 +111,24 @@ const splitCssCode = (code) => {
 
     // Если это часть медиазапроса - добавляем строку 
     // Проверяем на содержание закрывающего тега
+    // Функций слишком много в программе
+    // поэтому не стал добавление строки выводить в другую функцию
     if (mediaStatus) {
       if (codeArr[i].includes('{')) {
         counter += 1
         mediaRequestsCode += codeArr[i] + '\n'
+
       } else if (codeArr[i].includes('}')) {
         counter -= 1
         mediaRequestsCode += codeArr[i] + '\n'
+
       } else {
         mediaRequestsCode += codeArr[i] + '\n'
       }
 
-      // Удаляем эту строку из кода
+      // Удаляем эту строку из обычного кода
+      // В конце у нас останется только 
+      // простой css код в этой переменной
       simpleCssCodeArr[i] = ''
     }
 
@@ -129,11 +151,16 @@ const splitCssCode = (code) => {
   return [mediaRequestsCode, simpleCssCode]
 }
 
+// Тут мы не обращаем внимание на медиазапросы и просто получаем тело класса
+// Обработка медиазапросов идет в другой функции getMediaRequestsCode()
 const getSimpleCssCode = (code, cssClassName) => {
   let cssCodeArr = code.split('\n')
 
   let cssCodeResult = ''
 
+  // Похожий принцип с открывающим тегом был раньше
+  // False - мы еще не в теге
+  // True - тег открыт и мы добавляем строки в результат 
   let openTagStatus = false
   // Проходим по каждой строке обычного кода и ищем нужный класс
   for (let i = 0, len = cssCodeArr.length; i < len; i++) {
@@ -217,14 +244,20 @@ const generateCssCode = (code, cssClassName, fileName) => {
   let simpleCssCode = getSimpleCssCode(wholeSimpleCssCode, cssClassName)
   let mediaRequestsCode = getMediaRequestsCode(wholeMediaReqCode, cssClassName)
 
+  // Соединяем обычный css код с кодом из медиазапросов
   let result = simpleCssCode + mediaRequestsCode
 
+  // Записываем код в файл
   fs.writeFileSync(fileName, result)
-
 }
 
 // Подсчет табуляции в начале строки
 const tabCounter = (code) => {
+  // Это нам нужно для html в jsx коде
+  // Мы возьмем первую строку и посмотрим сколько там табов
+  // В дальнейшем мы сможем найти сколько табов лишние
+  // и столько же удалить с каждой последующей строки
+  // Все строки получат красивый вид и одинаковую табуляцию 
 	// Ищем нужное количество табов чтобы красиво это оформить
 	// Делим на строки
 	let codeArr = code.split('\n')
@@ -247,19 +280,24 @@ const makeCodeBeautiful = (code) => {
 	// Если ваша программа работает то не читайте эту функцию
 	// Это функция отняла у меня кусочек жизни просто ради красивого кода
 	// Тут нет ничего особенного, просто я играю  с табами и делаю код красивее
-	// Удаляем лишние табы
 
+	// В этой функции мы удаляем лишние табы
+  // Если вставить без удаления то к примеру 5ый дочерний тег уже в своем файле
+  // Будет с 10 лишними табами спереди
 	// Получаем все что находится до открывающего тега 
 	let tabs = tabCounter(code)
 
 	// Ищем количество пробелов
+  // Я считаю только табы, если вы используете пробелы в своем коде - 
+  // идите в ванну, посмотрите в зеркало и подумайте над своим поведением
 	let tabSum = tabs.match(/\t/g).length
 
 	// Делим на строки
 	let codeArr = code.split('\n')
 	code = ''
 
-	// Вычитаем 2 так как в нормальном виде там 2 таба в начале
+	// Вычитаем 2 так как в нормальном виде в jsx файле 2 таба в начале
+  // После мы получаем разницу к примеру 4 таба и удаляем эти 4 таба из каждой строки
 	if (tabSum > 2) {
 		tabSum = tabSum - 2
 		let unnecessaryTabs = '\t'.repeat(tabSum)
@@ -281,6 +319,7 @@ const makeCodeBeautiful = (code) => {
 		let tabs = '\t'.repeat(tabSum)
 		for (let i = 0, len = codeArr.length; i < len; i++) {
 			if (codeArr[i] != '') {
+        // Не будем добавлять в конце перенос строки так как это некрасиво
 				if ((i+2) == len) {
 					code += tabs + codeArr[i]
 				} else {
@@ -290,6 +329,7 @@ const makeCodeBeautiful = (code) => {
 		}
 	}
 
+  // Возвращаем красивый код
 	return code
 }
 
@@ -314,10 +354,19 @@ const generateJsImport = (code) => {
 
 	return importCode
 }
+
 // Генерация и запись js файла для компонента
 const createJsxCode = (fileName, className, classCode) => {
+  // Удаляем ненужные табуляции в начале
 	classCode = makeCodeBeautiful(classCode)
+
+  // Генерируем импорты для дочерних тегов
 	let importCode = generateJsImport(classCode)
+
+  // Шаблон для создания кода
+  // Можно было в отдельный файл, но он слишком маленький и простой
+  // Намного быстрее и проще редактировать его здесь
+  // Если вам нужен большой шаблон - вынесите в отдельный файл
   let template = `import './${className}.css';
 ${importCode}
 
@@ -330,11 +379,15 @@ ${classCode}
 export default ${className};
   `
 
+  // Записываем в нужный файл
   fs.writeFileSync(fileName, template)
 }
 
 // Создание папки
 const createComponentFolder = (folderName) => {
+  // Папки могут быть созданы ранее,
+  // поэтому мы просто игнорируем ошибки
+  // Это позволяет не загрязнять консоль
   try {
     fs.mkdirSync(folderName);
   } catch (err) {}
@@ -342,7 +395,7 @@ const createComponentFolder = (folderName) => {
 
 // Создание компонента
 const createComponent = (componentName, componentCode, componentCssCode, parentPath) => {
-  // Создаем папку и файлы
+  // Создаем путь к папке
   let folderPath = `${parentPath}/${componentName}`
   
 	// Создаем папку
@@ -358,6 +411,8 @@ const createComponent = (componentName, componentCode, componentCssCode, parentP
 
   let counter = 0
   // Проходим по каждой строке и определяем дочерние классы первого уровня
+  // Здесь принцип такой же как и в других функциях 
+  // Если что-то непонятно - изучите функцию getClassHtmlContent()
   for (let i = 0, len = componentCodeArr.length; i < len; i++) {
 
     // Делим строку на теги
@@ -369,6 +424,8 @@ const createComponent = (componentName, componentCode, componentCssCode, parentP
         counter -= 1
       } else if (tag.includes('div')) {
         counter += 1
+        // Так как в теле класса есть также и родительский
+        // дочерние классы первого уровня будут иметь индекс 2
         if (counter == 2) {
           let childComponentName = getClassName(tag)
           let childComponentCode = getClassHtmlContent(componentCode, childComponentName)
@@ -387,10 +444,14 @@ const createComponent = (componentName, componentCode, componentCssCode, parentP
   }
 	// Записываем Js файл
   createJsxCode(jsFile, componentName, componentCode)
+  // Так как вся работа идет с классами
+  // В любом случае нам понадобится точка в начале
+  // Поэтому функция generateCssCode() сравнивает имена классов именно с точкой
   let cssComponentName = '.' + componentName
   generateCssCode(componentCssCode, cssComponentName, cssFile)
 };
 
+// Начало программы
 // Первичное чтение файла
 const start = () => {
   // Читаем настройки из json
@@ -398,7 +459,8 @@ const start = () => {
   let jsonContent = JSON.parse(contents);
 
   // Получаем необходимые данные: 
-  //  - имя файла
+  //  - имя файла с HTML
+  //  - имя файла с CSS
   //  - класс с котрого надо начать
   //  - папка в которую надо вложить компоненты
   let htmlFileName = jsonContent.htmlPath
@@ -406,7 +468,7 @@ const start = () => {
   let firstClassName = jsonContent.firstClassName
   let firstFolder = jsonContent.resultPath
 
-  //
+  // Получаем содержимое файлов
   let htmlFileContent = fs.readFileSync(htmlFileName, 'utf8');
   let cssFileContent =  fs.readFileSync(cssFileName, "utf8");
 
