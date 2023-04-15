@@ -1,12 +1,41 @@
 const fs = require('fs');
 
+// Цвета для информационных логов
+const errorColor = '\x1b[31m'
+const successColor = "\x1b[32m"
+
+// Данная функция делает первую букву строки заглавной
+// Так как мы должны писать компоненты с заглавной буквы 
+// Во избежание ошибок будем автоматически менять первую букву класса на заглавную
+function ucFirst(str) {
+  if (!str) return str;
+
+  return str[0].toUpperCase() + str.slice(1);
+}
+
 //  Получение имени класса 
 const getClassName = (string) => {
   // Так как класс находится внутри выражения class="ИмяКласса"
   // С помощью регулярных выражений получаем содержимое
   let regEx = 'class="(.*)"';
-  let className = string.match(regEx)[1];
-  return className
+
+  // Нам могут передать компонент без класса
+  // В таком случае мы останавливаем программу и выдаем ошибку
+  try {
+    let className = string.match(regEx)[1];
+
+    // В компоненте может быть несколько классов
+    // поэтому мы удаляем все после пробела 
+    // и берем как название первое слово
+    className = /^[^ ]+/.exec(className)[0];
+    return ucFirst(className)
+
+  } catch (error) {
+    // Выдаем ошибку
+    console.log(errorColor, `Function Name:  getClassName`)
+    console.log(errorColor, `Error: ${string} ClassName not found`)
+    process.exit(-1);
+  }
 }
 
 // Получение тела нужного класса
@@ -50,9 +79,9 @@ const getClassHtmlContent = (code, className) => {
       // Открывающий тег прибавляет 1
       // Это поможет нам взаимоуничтожить дочерние классы и 
       // найти конец нужного нам класса
-      if (tag.includes("/div")) {
+      if (tag.includes("/$")) {
         closeTagCounter -= 1
-      } else if (tag.includes("div")) {
+      } else if (tag.includes("$")) {
         closeTagCounter += 1
       }
     });
@@ -420,9 +449,9 @@ const createComponent = (componentName, componentCode, componentCssCode, parentP
 
     // Проходим по каждому тегу
     stringArr.forEach(tag => {
-      if (tag.includes('/div')) {
+      if (tag.includes('/$')) {
         counter -= 1
-      } else if (tag.includes('div')) {
+      } else if (tag.includes('$')) {
         counter += 1
         // Так как в теле класса есть также и родительский
         // дочерние классы первого уровня будут иметь индекс 2
@@ -442,7 +471,13 @@ const createComponent = (componentName, componentCode, componentCssCode, parentP
       }
     });
   }
-	// Записываем Js файл
+
+  // Так как знак $ нам нужен только для обозначения компонентов, 
+  // для успешной компиляции проекта мы их удаляем в тегах
+  componentCode = componentCode.replace('</$', '</')
+  componentCode = componentCode.replace('<$', '<')
+
+  // Записываем Js файл
   createJsxCode(jsFile, componentName, componentCode)
   // Так как вся работа идет с классами
   // В любом случае нам понадобится точка в начале
@@ -455,27 +490,61 @@ const createComponent = (componentName, componentCode, componentCssCode, parentP
 // Первичное чтение файла
 const start = () => {
   // Читаем настройки из json
-  let contents = fs.readFileSync("settings.json");
-  let jsonContent = JSON.parse(contents);
+  let contents
+  let jsonContent
+
+  try {
+    contents = fs.readFileSync("settings.json");
+    jsonContent = JSON.parse(contents);
+    
+  } catch (error) {
+    console.log(errorColor, `Error: file settings.json not found`)
+    process.exit(-1);
+  }
 
   // Получаем необходимые данные: 
   //  - имя файла с HTML
-  //  - имя файла с CSS
-  //  - класс с котрого надо начать
-  //  - папка в которую надо вложить компоненты
   let htmlFileName = jsonContent.htmlPath
+  //  - имя файла с CSS
   let cssFileName = jsonContent.cssPath
+  //  - класс с котрого надо начать
   let firstClassName = jsonContent.firstClassName
+  //  - папка в которую надо вложить компоненты
   let firstFolder = jsonContent.resultPath
 
   // Получаем содержимое файлов
-  let htmlFileContent = fs.readFileSync(htmlFileName, 'utf8');
-  let cssFileContent =  fs.readFileSync(cssFileName, "utf8");
+  try {
+    htmlFileContent = fs.readFileSync(htmlFileName, 'utf8');
+  } catch (error) {
+    console.log(errorColor, `Error: HTML file not found`)
+    process.exit(-1);
+  }
+
+  try {
+    cssFileContent =  fs.readFileSync(cssFileName, "utf8");
+  } catch (error) {
+    console.log(errorColor, `Error: CSS file not found`)
+    process.exit(-1);
+  }
+
 
   // Получаем тело класса с которого надо начать
-  let htmlCode = getClassHtmlContent(htmlFileContent, firstClassName)
-  // Создание первого компонента
-  createComponent(firstClassName, htmlCode, cssFileContent, firstFolder)
+  try {
+    htmlCode = getClassHtmlContent(htmlFileContent, firstClassName)
+  } catch (error) {
+    console.log(errorColor, `Error: first class not found`)
+    process.exit(-1);
+  }
+
+  try {
+      // Создание первого компонента
+      createComponent(firstClassName, htmlCode, cssFileContent, firstFolder)
+      console.log(successColor, 'Success: Components created')
+  } catch (error) {
+    console.log(errorColor, `Error: Please check if the data entered in settings.json is correct`)
+    process.exit(-1);
+  }
+  
 }
 
 // Запуск программы
